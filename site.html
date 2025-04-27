@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IFS Audit - Site Audité</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Pako - Compression -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    
+    <style>
+        /* Basic styles to prevent FOUC */
+        body { visibility: hidden; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <header class="bg-green-600 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">IFS Audit - Interface Site</h1>
+            <div class="flex items-center space-x-2">
+                <button id="helpBtn" class="bg-white text-green-600 font-bold rounded-full w-6 h-6 flex items-center justify-center hover:bg-green-100" title="Aide">?</button>
+                <label for="userName" class="mr-2">Votre Nom:</label>
+                <input type="text" id="userName" class="p-1 rounded text-black">
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 mt-4 pb-16"> <!-- Added padding-bottom -->
+        <!-- Action Buttons -->
+        <div class="bg-white p-4 rounded shadow mb-4 flex space-x-2">
+            <input type="file" id="packageFileInput" accept=".ifsaudit" class="hidden" onchange="handlePackageLoadTrigger()">
+            <button id="loadPackageBtn" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">Charger Package</button>
+
+            <button id="exportPackageBtn" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>Exporter Package</button>
+            <!-- Import/Finalize/Logs buttons are hidden for Site -->
+        </div>
+
+        <!-- Message Area -->
+        <div id="messageArea" class="mb-4"></div>
+
+        <!-- Metadata Display -->
+        <div id="metadataDisplay" class="bg-white p-4 rounded shadow mb-4 grid grid-cols-2 gap-4 hidden">
+            <div><strong>COID:</strong> <span id="metaCoid">N/A</span></div>
+            <div><strong>Site:</strong> <span id="metaSiteName">N/A</span></div>
+            <div><strong>Type Audit:</strong> <span id="metaAuditType">N/A</span></div>
+            <div><strong>Date Audit:</strong> <span id="metaAuditDate">N/A</span></div>
+            <div><strong>Statut:</strong> <span id="metaStatus" class="font-semibold">N/A</span></div>
+            <div><strong>Version Fichier:</strong> <span id="metaInternalVersion">N/A</span></div>
+            <div><strong>Dernière Sauvegarde:</strong> <span id="metaLastSaved">N/A</span></div>
+            <div><strong>Taille Estimée:</strong> <span id="metaPackageSize">~0 MB</span></div>
+        </div>
+
+        <!-- Audit Items Table -->
+        <div class="bg-white p-4 rounded shadow overflow-x-auto">
+            <h2 class="text-xl font-semibold mb-3">Plan d'Action</h2>
+            <table id="auditItemsTable" class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exigence</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correction</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action Corrective</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Prévue</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut Action</th>
+                        <!-- Add other relevant columns for Site view -->
+                    </tr>
+                </thead>
+                <tbody id="auditItemsTableBody" class="bg-white divide-y divide-gray-200">
+                    <!-- Rows will be added dynamically -->
+                    <tr><td colspan="7" class="text-center p-4 text-gray-500">Veuillez charger un package (.ifsaudit).</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Edit Modal (Hidden by default) -->
+        <div id="editModal" class="fixed z-10 inset-0 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-center justify-center min-h-screen py-8 px-4 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+                    <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">Détail Item <span id="modalItemId" class="font-bold"></span></h3>
+                        <div id="modalContent" class="mt-2 max-h-96 overflow-y-auto">
+                            <!-- Form fields, comments, proofs will be loaded here, adapted for Site role -->
+                            <p>Chargement du contenu de la modale...</p>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                        <button type="button" id="modalSaveBtn" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm">
+                            Enregistrer
+                        </button>
+                        <button type="button" id="modalCancelBtn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                            Annuler
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Log Modal is not needed for Site -->
+
+    </main>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="fixed z-50 inset-0 overflow-y-auto hidden" aria-modal="true" role="dialog">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+            <div class="bg-white rounded-lg overflow-hidden shadow-xl transform transition-all max-w-3xl w-full z-50 p-6 relative">
+                <h2 class="text-xl font-bold mb-4">Aide - Interface Site</h2>
+                <div class="space-y-4 max-h-[70vh] overflow-y-auto">
+                    <p><strong>Objectif :</strong> Compléter et documenter les corrections suite à l'audit.</p>
+                    <p><strong>Workflow :</strong></p>
+                    <ul class="list-disc pl-6 space-y-1">
+                        <li>Charger le package <code>.ifsaudit</code> reçu de l'auditeur.</li>
+                        <li>Compléter les champs "Correction", "Action Corrective", "Responsable", "Dates".</li>
+                        <li>Ajouter des preuves (photos, documents) si nécessaire.</li>
+                        <li>Ajouter des commentaires pour l'auditeur.</li>
+                        <li>Exporter le package modifié et le renvoyer à l'auditeur.</li>
+                    </ul>
+                    <p><strong>Contraintes :</strong></p>
+                    <ul class="list-disc pl-6 space-y-1">
+                        <li>Vous ne pouvez modifier que les champs dédiés au Site.</li>
+                        <li>Chaque export crée une nouvelle version du package (numéro incrémenté).</li>
+                        <li>Assurez-vous de toujours travailler sur la <u>dernière version reçue</u>.</li>
+                        <li>Exporter le package après chaque modification importante.</li>
+                    </ul>
+                    <p><strong>Conseils :</strong></p>
+                    <ul class="list-disc pl-6 space-y-1">
+                        <li>Vérifiez le numéro de version et la date dans l'en-tête avant de commencer.</li>
+                        <li>Conservez un historique clair des fichiers échangés (nommage automatique).</li>
+                        <li>Ajoutez des preuves pour justifier vos corrections.</li>
+                        <li>Contactez l'auditeur en cas de doute.</li>
+                    </ul>
+                </div>
+                <button id="helpCloseBtn" class="mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-700 text-white text-center p-3 mt-8">
+        <p>Version <span id="appVersion">1.0.0</span></p>
+    </footer>
+
+    <script src="common.js"></script>
+    <script src="site.js"></script>
+    <script>
+        // Make body visible after DOM is loaded to prevent FOUC
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.style.visibility = 'visible';
+
+            const helpBtn = document.getElementById('helpBtn');
+            const helpModal = document.getElementById('helpModal');
+            const helpCloseBtn = document.getElementById('helpCloseBtn');
+
+            if (helpBtn && helpModal && helpCloseBtn) {
+                helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+                helpCloseBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+            }
+        });
+    </script>
+</body>
+</html>
